@@ -1,5 +1,6 @@
 package com.springsecurity.config;
 
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -44,6 +45,8 @@ public class SecurityConfig {
         http
             // URL별 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
+                    // H2 콘솔은 로그인 없이 허용
+                    .requestMatchers(PathRequest.toH2Console()).permitAll()
                     .requestMatchers(   // requestMatchers(): 특정 경로에 대한 접근 권한 지정 
                             "/",
                             "/public/**",
@@ -66,7 +69,9 @@ public class SecurityConfig {
             // CSRF 설정
             // 기본적으로 CSRF가 활성화되어 POST/PUT/DELETE 요청 시 토큰 필요
             // 개발/테스트 단계에서는 편의상 비활성화
-            .csrf(csrf -> csrf.disable());
+            .csrf(csrf -> csrf.disable())
+            .headers(headers -> headers
+                    .frameOptions(frame -> frame.sameOrigin()));
         
         return http.build();    // 설정된 SecurityFilterChain 객체 반환
     }

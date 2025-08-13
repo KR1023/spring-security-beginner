@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE
+    # jdbc:h2:mem:testdb → 메모리 DB로 testdb라는 이름 사용
+    # MODE=MySQL → H2 SQL 문법을 MySQL 스타일로 호환
+    # DATABASE_TO_LOWER=TRUE → 대소문자 구분 없이 소문자로 테이블명/컬럼명 처리
+    driver-class-name: org.h2.Driver   # H2 전용 드라이버
+    username: sa                       # 기본 계정
+    password:                          # 비밀번호 없음
+  jpa:
+    hibernate:
+      ddl-auto: update                  # 엔티티 변경 시 DB 스키마 자동 반영 (dev 전용)
+    properties:
+      hibernate:
+        format_sql: true                # SQL을 보기 좋게 포맷팅
+    open-in-view: false                 # OSIV(Open Session In View) 비활성화 (권장)
+  h2:
+    console:
+      enabled: true                     # H2 웹 콘솔 활성화
+      path: /h2-console                  # 웹 콘솔 접근 경로 (http://localhost:8080/h2-console)
+
+logging:
+  level:
+    org.hibernate.SQL: debug            # 실행되는 SQL 로그 출력
+    org.hibernate.orm.jdbc.bind: trace  # SQL 파라미터 바인딩 값까지 출력
