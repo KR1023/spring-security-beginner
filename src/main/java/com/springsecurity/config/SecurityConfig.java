@@ -1,13 +1,19 @@
 package com.springsecurity.config;
 
 import com.springsecurity.auth.CustomUserDetailsService;
+import com.springsecurity.jwt.JwtAuthenticationFilter;
+import com.springsecurity.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -15,13 +21,15 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @RequiredArgsConstructor
 @EnableMethodSecurity   // 메서드 보안 활성화
 public class SecurityConfig {
 
-    private final CustomUserDetailsService customUserDetailsService;
+    private final CustomUserDetailsService userDetailsService;
+    private final JwtService jwtService;
 
     // 비밀번호 암호화 Bean 등록
     @Bean
@@ -30,21 +38,30 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // DB 기반 인증 제공자 등록
+    // DB 기반 인증에 UserDetailsService + PasswordEncoder 사용
     @Bean
-    public DaoAuthenticationProvider daoAuthenticationProvider(PasswordEncoder encoder) {
+    public AuthenticationProvider authenticationProvider(PasswordEncoder encoder) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(customUserDetailsService);
+        provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(encoder);
 
         return provider;
     }
+    
+    // AuthenticationManager 주입(로그인 시 사용)
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
+    }
 
-
+    
+    // Stateless + JWT 필터 등록
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider authProvider) throws Exception {
+        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, userDetailsService);
         http
-            .authenticationProvider(authProvider)   // DB 인증 제공자 적용
+            .csrf(csrf -> csrf.disable()) // JWT 환경에서는 보통 stateless라 비활성화
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 미사용
             .authorizeHttpRequests(auth -> auth // URL별 접근 권한 설정
                     // H2 콘솔은 로그인 없이 허용
                     .requestMatchers(PathRequest.toH2Console()).permitAll()
@@ -54,26 +71,12 @@ public class SecurityConfig {
                             "/css/**",
                             "/js/**",
                             "/images/**").permitAll()   // permitAll(): 인증 없이 누구나 접근 가능
+                    .requestMatchers("/api/auth/**").permitAll() // 로그인/리프레시 허용
                     .requestMatchers("/admin/**").hasRole("ADMIN")  // ROLE_ADMIN 필요
-                    .requestMatchers("/manager/**").hasAnyRole("ADMIN", "MANAGER")  // ROLE_ADMIN 또는 ROLE_MANAGER
-                    .requestMatchers("/api/**").hasAnyAuthority("ROLE_API", "ROLE_ADMIN")    // ROLE_접두사까지 명시
                     .anyRequest().authenticated()   // 그 외 모든 요청은 인증 필요
             )
-            // 폼 로그인 설정
-            .formLogin(form -> form
-                    .loginPage("/login")    // loginPage(): 커스텀 로그인 페이지 경로 지정
-                    .defaultSuccessUrl("/", true)   // 로그인 성공 후 이동할 페이지
-                    .permitAll()    // permitAll(): 로그인 페이지 접근은 인증 없이 허용
-            )
-            // 로그아웃 설정
-            .logout(logout -> logout
-                    .logoutUrl("/logout")   // logoutUrl(): 로그아웃 요청 URL 지정
-                    .permitAll()    // permitAll(): 로그아웃 요청은 누구나 가능
-            )
-            // CSRF 설정
-            // 기본적으로 CSRF가 활성화되어 POST/PUT/DELETE 요청 시 토큰 필요
-            // 개발/테스트 단계에서는 편의상 비활성화
-            .csrf(csrf -> csrf.disable())
+            // UsernamePasswordAuthenticationFilter 전에 JWT 검증 필터 실행
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
             .headers(headers -> headers
                     .frameOptions(frame -> frame.sameOrigin()));
         
