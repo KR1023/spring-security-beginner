@@ -24,10 +24,10 @@ public class UserAccount {
     @Column(nullable = false, length = 100)
     private String password;
 
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, length = 30)  // ROLE_USER / ROLE_ADMIN
     private String role;
 
-    @Column(nullable = false)
+    @Column(nullable = false)   // 계정 활성화 여부
     private boolean enabled = true;
 
 

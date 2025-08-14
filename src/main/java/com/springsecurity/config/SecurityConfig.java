@@ -1,9 +1,11 @@
 package com.springsecurity.config;
 
+import com.springsecurity.auth.CustomUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,6 +19,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final CustomUserDetailsService customUserDetailsService;
 
     // 비밀번호 암호화 Bean 등록
     @Bean
@@ -25,29 +28,22 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // 메모리 기반 사용자 저장소 Bean
+    // DB 기반 인증 제공자 등록
     @Bean
-    public UserDetailsService userDetailsService(PasswordEncoder encoder) {
-        UserDetails user = User.withUsername("user")
-                .password(encoder.encode("1234"))    // 비밀번호 암호화 필수
-                .roles("USER")  // ROLE_USER
-                .build();
+    public DaoAuthenticationProvider daoAuthenticationProvider(PasswordEncoder encoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(customUserDetailsService);
+        provider.setPasswordEncoder(encoder);
 
-        UserDetails admin = User.withUsername("admin")
-                .password(encoder.encode("1234"))
-                .roles("ADMIN") // ROLE_ADMIN
-                .build();
-
-        // InMemoryUserDetailsManager: 메모리에 사용자 저장
-        return new InMemoryUserDetailsManager(user, admin);
+        return provider;
     }
 
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider authProvider) throws Exception {
         http
-            // URL별 접근 권한 설정
-            .authorizeHttpRequests(auth -> auth
+            .authenticationProvider(authProvider)   // DB 인증 제공자 적용
+            .authorizeHttpRequests(auth -> auth // URL별 접근 권한 설정
                     // H2 콘솔은 로그인 없이 허용
                     .requestMatchers(PathRequest.toH2Console()).permitAll()
                     .requestMatchers(   // requestMatchers(): 특정 경로에 대한 접근 권한 지정 
@@ -62,6 +58,7 @@ public class SecurityConfig {
             // 폼 로그인 설정
             .formLogin(form -> form
                     .loginPage("/login")    // loginPage(): 커스텀 로그인 페이지 경로 지정
+                    .defaultSuccessUrl("/", true)   // 로그인 성공 후 이동할 페이지
                     .permitAll()    // permitAll(): 로그인 페이지 접근은 인증 없이 허용
             )
             // 로그아웃 설정
