@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,6 +18,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @RequiredArgsConstructor
+@EnableMethodSecurity   // 메서드 보안 활성화
 public class SecurityConfig {
 
     private final CustomUserDetailsService customUserDetailsService;
@@ -53,6 +55,8 @@ public class SecurityConfig {
                             "/js/**",
                             "/images/**").permitAll()   // permitAll(): 인증 없이 누구나 접근 가능
                     .requestMatchers("/admin/**").hasRole("ADMIN")  // ROLE_ADMIN 필요
+                    .requestMatchers("/manager/**").hasAnyRole("ADMIN", "MANAGER")  // ROLE_ADMIN 또는 ROLE_MANAGER
+                    .requestMatchers("/api/**").hasAnyAuthority("ROLE_API", "ROLE_ADMIN")    // ROLE_접두사까지 명시
                     .anyRequest().authenticated()   // 그 외 모든 요청은 인증 필요
             )
             // 폼 로그인 설정
